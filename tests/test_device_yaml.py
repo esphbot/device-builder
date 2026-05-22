@@ -976,7 +976,7 @@ def test_generate_device_yaml_with_no_defaults_arg_unchanged() -> None:
     assert "switch:" not in out
 
 
-def test_generate_device_yaml_for_apollo_esk_1_includes_default_blocks(
+async def test_generate_device_yaml_for_apollo_esk_1_includes_default_blocks(
     session_component_catalog: Any,
 ) -> None:
     """The apollo-esk-1 board's ``default_components`` land in fresh YAML.
@@ -990,7 +990,7 @@ def test_generate_device_yaml_for_apollo_esk_1_includes_default_blocks(
     """
     board = session_component_catalog._db.boards.get_by_id("apollo-esk-1")
     assert board is not None
-    defaults = session_component_catalog.resolve_default_components(board)
+    defaults = await session_component_catalog.resolve_default_components(board)
     out = generate_device_yaml("starter", "Starter Kit", board, ssid="", psk="", defaults=defaults)
     # accessory_power → switch.gpio with the locked pin / ALWAYS_ON
     # restore_mode / setup_priority preset from featured_components.
@@ -1003,7 +1003,7 @@ def test_generate_device_yaml_for_apollo_esk_1_includes_default_blocks(
     assert "web_server:" in out
 
 
-def test_resolve_default_components_falls_through_to_catalog_id(
+async def test_resolve_default_components_falls_through_to_catalog_id(
     session_component_catalog: Any,
 ) -> None:
     """Bare catalog ids resolve when no featured-component matches.
@@ -1015,7 +1015,7 @@ def test_resolve_default_components_falls_through_to_catalog_id(
     """
     board = session_component_catalog._db.boards.get_by_id("apollo-esk-1")
     assert board is not None
-    pairs = session_component_catalog.resolve_default_components(board)
+    pairs = await session_component_catalog.resolve_default_components(board)
     component_ids = [c.id for c, _ in pairs]
     assert "web_server" in component_ids
     # accessory_power resolves through the featured path, so the
@@ -1023,7 +1023,7 @@ def test_resolve_default_components_falls_through_to_catalog_id(
     assert "switch.gpio" in component_ids
 
 
-def test_resolve_default_components_carries_inline_fields(
+async def test_resolve_default_components_carries_inline_fields(
     session_component_catalog: Any,
 ) -> None:
     """The object-form's ``fields:`` overrides flow into the resolved pair.
@@ -1036,13 +1036,13 @@ def test_resolve_default_components_carries_inline_fields(
     """
     board = session_component_catalog._db.boards.get_by_id("apollo-esk-1")
     assert board is not None
-    pairs = session_component_catalog.resolve_default_components(board)
+    pairs = await session_component_catalog.resolve_default_components(board)
     web = next((fields for component, fields in pairs if component.id == "web_server"), None)
     assert web is not None
     assert web.get("version") == "3"
 
 
-def test_resolve_default_components_skips_unknown_id_with_warning(
+async def test_resolve_default_components_skips_unknown_id_with_warning(
     session_component_catalog: Any,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1053,13 +1053,13 @@ def test_resolve_default_components_skips_unknown_id_with_warning(
     but a synthetic / hand-mutated ``BoardCatalogEntry`` could
     still feed an unknown id to the resolver. Skip-with-warning
     keeps the wizard from blowing up on what's almost always a
-    config drift between the manifest and ``components.json``.
+    config drift between the manifest and the component catalog.
     """
     board = deepcopy(session_component_catalog._db.boards.get_by_id("apollo-esk-1"))
     assert board is not None
     board.default_components = [DefaultComponent(id="not_a_real_component")]
     with caplog.at_level(logging.WARNING):
-        pairs = session_component_catalog.resolve_default_components(board)
+        pairs = await session_component_catalog.resolve_default_components(board)
     assert pairs == []
     assert any("not_a_real_component" in rec.getMessage() for rec in caplog.records)
 
